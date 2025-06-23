@@ -1,0 +1,82 @@
+Metadata-Version: 2.4
+Name: todo-mcp-server
+Version: 0.1.0
+Summary: MCP server for to-do list management with MongoDB
+Author-email: User <user@example.com>
+License: MIT
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: mcp>=1.0.0
+Requires-Dist: pymongo>=4.6.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: fastapi>=0.104.0
+Requires-Dist: uvicorn>=0.24.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: isort>=5.12.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+
+# Todo MCP Server
+
+An MCP (Model Context Protocol) server that provides to-do list management functionality with MongoDB backend.
+
+## Features
+
+- **CRUD Operations**: Create, read, update, and delete to-do items
+- **Status Management**: Mark items as completed or pending
+- **MongoDB Integration**: Persistent storage using MongoDB
+- **FastAPI Backend**: RESTful API endpoints for all operations
+
+## Tools Available
+
+- `add_todo`: Add a new to-do item
+- `get_all_todos`: Retrieve all to-do items
+- `update_todo`: Update an existing to-do item
+- `delete_todo`: Delete a to-do item
+- `toggle_todo_status`: Toggle completion status of a to-do item
+
+## Setup
+
+1. Install dependencies:
+```bash
+pip install -e .
+```
+
+2. Set up MongoDB connection string in environment variables:
+```bash
+export MONGODB_URI="mongodb://localhost:27017"
+export MONGODB_DATABASE="todo_db"
+```
+
+3. Run the server:
+```bash
+python -m todo_mcp_server.server
+```
+
+## Configuration
+
+The server requires the following environment variables:
+- `MONGODB_URI`: MongoDB connection string
+- `MONGODB_DATABASE`: Database name (default: "todo_db")
+
+## Usage
+
+Once configured as an MCP server, you can use the tools to manage your to-do list:
+
+- Add items with descriptions and optional due dates
+- Mark items as completed or pending
+- Update item details
+- Delete items you no longer need
+- View all items with their current status
