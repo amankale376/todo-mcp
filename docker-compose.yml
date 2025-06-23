@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  todo-mcp-server:
+    build: .
+    environment:
+      - MONGODB_URI=${MONGODB_URI:-mongodb+srv://myuser:mypassword@cluster0.abc123.mongodb.net/?retryWrites=true&w=majority}
+      - MONGODB_DATABASE=${MONGODB_DATABASE:-todo_db}
+    volumes:
+      - ./src:/app/src
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+  # Optional: Local MongoDB for development (uncomment if you want local MongoDB)
+  # mongodb:
+  #   image: mongo:7
+  #   environment:
+  #     MONGO_INITDB_ROOT_USERNAME: admin
+  #     MONGO_INITDB_ROOT_PASSWORD: password
+  #   ports:
+  #     - "27017:27017"
+  #   volumes:
+  #     - mongodb_data:/data/db
+  #   restart: unless-stopped
+
+# volumes:
+#   mongodb_data:

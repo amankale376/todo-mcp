@@ -24,15 +24,35 @@ class TodoDatabase:
     def connect(self):
         """Connect to MongoDB."""
         try:
-            self.client = MongoClient(self.mongodb_uri)
+            print(f"Attempting to connect to MongoDB...")
+            print(f"URI: {self.mongodb_uri[:20]}...")  # Only show first 20 chars for security
+            print(f"Database: {self.database_name}")
+            
+            self.client = MongoClient(
+                self.mongodb_uri,
+                serverSelectionTimeoutMS=5000,  # 5 second timeout
+                connectTimeoutMS=5000,
+                socketTimeoutMS=5000
+            )
             self.database = self.client[self.database_name]
             self.collection = self.database["todos"]
+            
             # Test the connection
             self.client.admin.command('ping')
-            print(f"Connected to MongoDB at {self.mongodb_uri}")
+            print(f"✅ Successfully connected to MongoDB!")
+            print(f"Database: {self.database_name}")
+            print(f"Collection: todos")
+            
         except Exception as e:
-            print(f"Failed to connect to MongoDB: {e}")
-            raise
+            error_msg = f"❌ Failed to connect to MongoDB: {str(e)}"
+            print(error_msg)
+            print("\n🔧 Troubleshooting tips:")
+            print("1. Check your MONGODB_URI environment variable")
+            print("2. Ensure your MongoDB Atlas cluster is running")
+            print("3. Verify your IP address is whitelisted in MongoDB Atlas")
+            print("4. Check your username and password are correct")
+            print("5. Ensure your cluster allows connections from your location")
+            raise ConnectionError(error_msg)
     
     def disconnect(self):
         """Disconnect from MongoDB."""
