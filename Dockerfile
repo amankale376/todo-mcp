@@ -22,7 +22,7 @@ RUN pip install -e .
 
 # Set environment variables
 ENV PYTHONPATH=/app/src
-ENV MONGODB_URI=mongodb://localhost:27017
+ENV MONGODB_URI=mongodb+srv://myuser:mypassword@cluster0.abc123.mongodb.net/?retryWrites=true&w=majority
 ENV MONGODB_DATABASE=todo_db
 
 # Expose port (if needed for health checks)
