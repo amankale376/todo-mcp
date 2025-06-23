@@ -339,20 +339,17 @@ def format_todo(todo) -> str:
 
 async def main():
     """Main entry point for the server."""
-    # Connect to database
-    try:
-        db.connect()
-    except Exception as e:
-        print(f"Failed to connect to database: {e}", file=sys.stderr)
-        sys.exit(1)
+    print("🚀 Starting Todo MCP Server...")
+    print("📝 Database connection will be established on first use (lazy loading)")
     
     try:
-        # Run the server
+        # Run the server (database connection is lazy)
         async with stdio_server() as (read_stream, write_stream):
             await server.run(read_stream, write_stream, server.create_initialization_options())
     finally:
-        # Disconnect from database
-        db.disconnect()
+        # Disconnect from database if connected
+        if hasattr(db, 'connected') and db.connected and not db.use_memory:
+            db.disconnect()
 
 
 if __name__ == "__main__":

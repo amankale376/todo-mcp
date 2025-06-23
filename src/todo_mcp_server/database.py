@@ -15,14 +15,35 @@ class TodoDatabase:
     
     def __init__(self):
         """Initialize database connection."""
-        self.mongodb_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+        self.mongodb_uri = os.getenv("MONGODB_URI")
         self.database_name = os.getenv("MONGODB_DATABASE", "todo_db")
+        self.use_memory = os.getenv("USE_MEMORY_DB", "false").lower() == "true"
         self.client: Optional[MongoClient] = None
         self.database: Optional[Database] = None
         self.collection: Optional[Collection] = None
+        self.connected = False
+        self.memory_store = []  # In-memory fallback
+        
+    def _ensure_connection(self):
+        """Ensure database connection is established (lazy connection)."""
+        if self.connected:
+            return
+            
+        if self.use_memory or not self.mongodb_uri:
+            print("🔄 Using in-memory storage (no MongoDB connection)")
+            self.connected = True
+            return
+            
+        self.connect()
         
     def connect(self):
         """Connect to MongoDB."""
+        if not self.mongodb_uri:
+            print("⚠️  No MONGODB_URI provided, falling back to in-memory storage")
+            self.use_memory = True
+            self.connected = True
+            return
+            
         try:
             print(f"Attempting to connect to MongoDB...")
             print(f"URI: {self.mongodb_uri[:20]}...")  # Only show first 20 chars for security
@@ -42,17 +63,16 @@ class TodoDatabase:
             print(f"✅ Successfully connected to MongoDB!")
             print(f"Database: {self.database_name}")
             print(f"Collection: todos")
+            self.connected = True
             
         except Exception as e:
-            error_msg = f"❌ Failed to connect to MongoDB: {str(e)}"
-            print(error_msg)
-            print("\n🔧 Troubleshooting tips:")
-            print("1. Check your MONGODB_URI environment variable")
-            print("2. Ensure your MongoDB Atlas cluster is running")
-            print("3. Verify your IP address is whitelisted in MongoDB Atlas")
-            print("4. Check your username and password are correct")
-            print("5. Ensure your cluster allows connections from your location")
-            raise ConnectionError(error_msg)
+            print(f"⚠️  Failed to connect to MongoDB: {str(e)}")
+            print("🔄 Falling back to in-memory storage")
+            self.use_memory = True
+            self.connected = True
+            self.client = None
+            self.database = None
+            self.collection = None
     
     def disconnect(self):
         """Disconnect from MongoDB."""
@@ -62,57 +82,93 @@ class TodoDatabase:
     
     async def create_todo(self, todo_data: TodoCreate) -> TodoItem:
         """Create a new todo item."""
-        if not self.collection:
-            raise RuntimeError("Database not connected")
+        self._ensure_connection()
         
         todo_dict = todo_data.dict()
         todo_dict["created_at"] = datetime.utcnow()
         todo_dict["updated_at"] = datetime.utcnow()
         todo_dict["completed"] = False
         
-        result = self.collection.insert_one(todo_dict)
-        todo_dict["_id"] = result.inserted_id
+        if self.use_memory:
+            # In-memory storage
+            from bson import ObjectId
+            todo_dict["_id"] = ObjectId()
+            self.memory_store.append(todo_dict.copy())
+        else:
+            # MongoDB storage
+            if not self.collection:
+                raise RuntimeError("Database not connected")
+            result = self.collection.insert_one(todo_dict)
+            todo_dict["_id"] = result.inserted_id
         
         return TodoItem(**todo_dict)
     
     async def get_all_todos(self) -> List[TodoItem]:
         """Get all todo items."""
-        if not self.collection:
-            raise RuntimeError("Database not connected")
+        self._ensure_connection()
         
         todos = []
-        for todo_doc in self.collection.find():
-            todos.append(TodoItem(**todo_doc))
+        if self.use_memory:
+            # In-memory storage
+            for todo_doc in self.memory_store:
+                todos.append(TodoItem(**todo_doc))
+        else:
+            # MongoDB storage
+            if not self.collection:
+                raise RuntimeError("Database not connected")
+            for todo_doc in self.collection.find():
+                todos.append(TodoItem(**todo_doc))
         
         return todos
     
     async def get_todo_by_id(self, todo_id: str) -> Optional[TodoItem]:
         """Get a todo item by ID."""
-        if not self.collection:
-            raise RuntimeError("Database not connected")
+        self._ensure_connection()
         
         try:
             object_id = ObjectId(todo_id)
-            todo_doc = self.collection.find_one({"_id": object_id})
             
-            if todo_doc:
-                return TodoItem(**todo_doc)
-            return None
+            if self.use_memory:
+                # In-memory storage
+                for todo_doc in self.memory_store:
+                    if todo_doc["_id"] == object_id:
+                        return TodoItem(**todo_doc)
+                return None
+            else:
+                # MongoDB storage
+                if not self.collection:
+                    raise RuntimeError("Database not connected")
+                todo_doc = self.collection.find_one({"_id": object_id})
+                if todo_doc:
+                    return TodoItem(**todo_doc)
+                return None
         except Exception:
             return None
     
     async def update_todo(self, todo_id: str, todo_update: TodoUpdate) -> Optional[TodoItem]:
         """Update a todo item."""
-        if not self.collection:
-            raise RuntimeError("Database not connected")
+        self._ensure_connection()
         
         try:
             object_id = ObjectId(todo_id)
             update_data = {k: v for k, v in todo_update.dict().items() if v is not None}
             
-            if update_data:
-                update_data["updated_at"] = datetime.utcnow()
+            if not update_data:
+                return None
                 
+            update_data["updated_at"] = datetime.utcnow()
+            
+            if self.use_memory:
+                # In-memory storage
+                for i, todo_doc in enumerate(self.memory_store):
+                    if todo_doc["_id"] == object_id:
+                        self.memory_store[i].update(update_data)
+                        return TodoItem(**self.memory_store[i])
+                return None
+            else:
+                # MongoDB storage
+                if not self.collection:
+                    raise RuntimeError("Database not connected")
                 result = self.collection.update_one(
                     {"_id": object_id},
                     {"$set": update_data}
@@ -120,20 +176,30 @@ class TodoDatabase:
                 
                 if result.modified_count > 0:
                     return await self.get_todo_by_id(todo_id)
-            
-            return None
+                return None
         except Exception:
             return None
     
     async def delete_todo(self, todo_id: str) -> bool:
         """Delete a todo item."""
-        if not self.collection:
-            raise RuntimeError("Database not connected")
+        self._ensure_connection()
         
         try:
             object_id = ObjectId(todo_id)
-            result = self.collection.delete_one({"_id": object_id})
-            return result.deleted_count > 0
+            
+            if self.use_memory:
+                # In-memory storage
+                for i, todo_doc in enumerate(self.memory_store):
+                    if todo_doc["_id"] == object_id:
+                        del self.memory_store[i]
+                        return True
+                return False
+            else:
+                # MongoDB storage
+                if not self.collection:
+                    raise RuntimeError("Database not connected")
+                result = self.collection.delete_one({"_id": object_id})
+                return result.deleted_count > 0
         except Exception:
             return False
     
